@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nassau Candy – Shipping Route Efficiency Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a18; --bg2: #111128; --bg3: #1a1a35;
+    --border: #2a2a50; --accent: #c084fc; --accent2: #60a5fa;
+    --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
+    --text: #e2e8f0; --muted: #8892b0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #0f0f2a, #1a0a30, #0a1530);
+             border-bottom: 1px solid var(--border); padding: 20px 32px;
+             display: flex; align-items: center; gap: 16px; }
+  .header-icon { font-size: 2.5rem; }
+  .header h1 { font-size: 1.7rem; font-weight: 700; color: var(--accent); }
+  .header p { color: var(--muted); font-size: 0.9rem; margin-top: 2px; }
+  .container { display: flex; min-height: calc(100vh - 80px); }
+  .sidebar { width: 240px; background: var(--bg2); border-right: 1px solid var(--border);
+             padding: 24px 16px; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .main { flex: 1; padding: 24px 28px; overflow-x: hidden; }
+  .nav-section { margin-bottom: 8px; color: var(--muted); font-size: 0.7rem;
+                 font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 12px 8px 4px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+              border-radius: 8px; cursor: pointer; color: var(--muted);
+              transition: all 0.2s; margin-bottom: 2px; font-size: 0.88rem; }
+  .nav-item:hover, .nav-item.active { background: #c084fc18; color: var(--accent); }
+  .nav-item .icon { width: 20px; text-align: center; }
+  .filter-section { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+  .filter-label { color: var(--muted); font-size: 0.75rem; font-weight: 600;
+                  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  select { width: 100%; background: var(--bg3); color: var(--text);
+           border: 1px solid var(--border); border-radius: 6px;
+           padding: 6px 10px; font-size: 0.82rem; margin-bottom: 12px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi-card { background: linear-gradient(135deg, var(--bg2), var(--bg3));
+              border: 1px solid var(--border); border-radius: 12px;
+              padding: 18px 16px; text-align: center; }
+  .kpi-value { font-size: 1.6rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
+  .kpi-label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .kpi-delta { font-size: 0.72rem; margin-top: 6px; }
+  .kpi-delta.good { color: var(--green); }
+  .kpi-delta.bad { color: var(--red); }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+          padding: 20px; margin-bottom: 20px; }
+  .card-title { font-size: 0.95rem; font-weight: 600; color: #d0c0f0; margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .table-wrapper { overflow-x: auto; max-height: 360px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  th { background: var(--bg3); color: var(--muted); font-weight: 600; padding: 10px 12px;
+       text-align: left; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+  td { padding: 9px 12px; border-bottom: 1px solid #1a1a30; }
+  tr:hover td { background: #ffffff05; }
+  .badge { display: inline-block; border-radius: 6px; padding: 2px 8px; font-size: 0.72rem; font-weight: 600; }
+  .badge-green { background: #14532d; color: #86efac; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+  .badge-yellow { background: #713f12; color: #fde68a; }
+  .bar-container { background: #1a1a35; border-radius: 8px; overflow: hidden; height: 22px; }
+  .bar-fill { height: 100%; border-radius: 8px; display: flex; align-items: center;
+              padding-left: 8px; font-size: 0.72rem; font-weight: 600; color: #fff; }
+  .bar-purple { background: linear-gradient(90deg, #7c3aed, #c084fc); }
+  .region-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .region-card { border-radius: 10px; padding: 14px 16px; border: 1px solid; }
+  .region-card.fast { background: #14532d22; border-color: #16a34a; }
+  .region-card.slow { background: #7f1d1d22; border-color: #dc2626; }
+  .region-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 8px; }
+  .region-stat { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+  .region-stat span { color: var(--text); font-weight: 600; }
+  h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin-bottom: 20px;
+       padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: 600; color: #c0b0e0; margin: 20px 0 12px; }
+  .insight { background: #c084fc10; border: 1px solid #c084fc30; border-radius: 10px;
+             padding: 14px 16px; margin: 12px 0; }
+  .insight-title { font-weight: 700; color: var(--accent); margin-bottom: 4px; font-size: 0.85rem; }
+  .insight-text { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: #3a3a60; border-radius: 3px; }
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🍭</div>
+  <div>
+    <h1>Nassau Candy Distributor</h1>
+    <p>Shipping Route Efficiency Intelligence Dashboard &mdash; 10,194 Shipments Analyzed</p>
+  </div>
+</div>
+
+<div class="container">
+<div class="sidebar">
+  <div class="nav-section">Navigation</div>
+  <div class="nav-item active" onclick="showTab('overview')"><span class="icon">📊</span> Overview</div>
+  <div class="nav-item" onclick="showTab('geographic')"><span class="icon">🗺️</span> Geographic</div>
+  <div class="nav-item" onclick="showTab('shipmode')"><span class="icon">🚚</span> Ship Mode</div>
+  <div class="nav-item" onclick="showTab('routes')"><span class="icon">🏭</span> Routes</div>
+  <div class="nav-item" onclick="showTab('trends')"><span class="icon">📈</span> Trends</div>
+  <div class="filter-section">
+    <div class="nav-section">Filters</div>
+    <div class="filter-label">Region</div>
+    <select id="filter-region" onchange="applyFilters()">
+      <option value="all">All Regions</option>
+      <option>Atlantic</option><option>Gulf</option>
+      <option>Interior</option><option>Pacific</option>
+    </select>
+    <div class="filter-label">Ship Mode</div>
+    <select id="filter-mode" onchange="applyFilters()">
+      <option value="all">All Modes</option>
+      <option>Standard Class</option><option>First Class</option>
+      <option>Second Class</option><option>Same Day</option>
+    </select>
+    <div class="filter-label">Factory</div>
+    <select id="filter-factory" onchange="applyFilters()">
+      <option value="all">All Factories</option>
+      <option>Lot's O' Nuts</option><option>Wicked Choccy's</option>
+      <option>Sugar Shack</option><option>Secret Factory</option>
+      <option>The Other Factory</option>
+    </select>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview" class="tab-panel active">
+    <h2>📊 Executive Overview</h2>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-value">10,194</div><div class="kpi-label">Total Shipments</div></div>
+      <div class="kpi-card"><div class="kpi-value">1,321</div><div class="kpi-label">Avg Lead Time (days)</div></div>
+      <div class="kpi-card"><div class="kpi-value">1,274</div><div class="kpi-label">Median Lead Time</div></div>
+      <div class="kpi-card"><div class="kpi-value" style="color:var(--red)">33.1%</div><div class="kpi-label">Delay Rate</div><div class="kpi-delta bad">⬆ Exceeds 1,583-day threshold</div></div>
+      <div class="kpi-card"><div class="kpi-value">196</div><div class="kpi-label">Unique Routes</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">📦 Lead Time Distribution</div><canvas id="chart-hist" height="220"></canvas></div>
+      <div class="card"><div class="card-title">🏭 Avg Lead Time by Factory</div><canvas id="chart-factory" height="220"></canvas></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">✅ Top 10 Most Efficient Routes</div>
+        <div class="table-wrapper"><table><thead><tr><th>Route</th><th>Avg LT (d)</th><th>Volume</th><th>Score</th></tr></thead><tbody id="table-top10"></tbody></table></div>
+      </div>
+      <div class="card"><div class="card-title">⚠️ Bottom 10 Least Efficient Routes</div>
+        <div class="table-wrapper"><table><thead><tr><th>Route</th><th>Avg LT (d)</th><th>Volume</th><th>Delay %</th></tr></thead><tbody id="table-bot10"></tbody></table></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">📦 Division Performance</div><div class="grid-3" id="div-cards"></div></div>
+  </div>
+
+  <!-- GEOGRAPHIC -->
+  <div id="tab-geographic" class="tab-panel">
+    <h2>🗺️ Geographic Analysis</h2>
+    <div class="card"><div class="card-title">🫧 State Lead Time Bubble Chart (size = volume, color = lead time)</div><canvas id="chart-statebubble" height="200"></canvas></div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">🗺️ Regional Bottleneck Overview</div><div class="region-grid" id="region-cards"></div></div>
+      <div class="card"><div class="card-title">📊 Top 15 Slowest States</div><canvas id="chart-states" height="280"></canvas></div>
+    </div>
+    <div class="card"><div class="card-title">🏆 State Performance Leaderboard</div>
+      <div class="grid-2">
+        <div><h3>✅ 10 Fastest States</h3>
+          <div class="table-wrapper"><table><thead><tr><th>State</th><th>Avg LT</th><th>Shipments</th><th>Delay%</th></tr></thead><tbody id="table-fast-states"></tbody></table></div>
+        </div>
+        <div><h3>⚠️ 10 Slowest States</h3>
+          <div class="table-wrapper"><table><thead><tr><th>State</th><th>Avg LT</th><th>Shipments</th><th>Delay%</th></tr></thead><tbody id="table-slow-states"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHIP MODE -->
+  <div id="tab-shipmode" class="tab-panel">
+    <h2>🚚 Ship Mode Analysis</h2>
+    <div class="kpi-grid" id="mode-kpis" style="grid-template-columns: repeat(4,1fr);"></div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">⏱️ Avg Lead Time by Ship Mode</div><canvas id="chart-mode-avg" height="220"></canvas></div>
+      <div class="card"><div class="card-title">🚨 Delay Rate by Ship Mode</div><canvas id="chart-mode-delay" height="220"></canvas></div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">📦 Volume Share by Mode</div><canvas id="chart-mode-vol" height="220"></canvas></div>
+      <div class="card"><div class="card-title">🌡️ Factory × Region Lead Time Matrix</div><div id="heatmap-container"></div></div>
+    </div>
+    <div class="card"><div class="card-title">💡 Key Insights</div><div id="mode-insights"></div></div>
+  </div>
+
+  <!-- ROUTES -->
+  <div id="tab-routes" class="tab-panel">
+    <h2>🏭 Route Drill-Down</h2>
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div><div class="filter-label">Factory</div>
+        <select id="drill-factory" onchange="renderDrillDown()">
+          <option value="all">All Factories</option>
+          <option>Lot's O' Nuts</option><option>Wicked Choccy's</option>
+          <option>Sugar Shack</option><option>Secret Factory</option><option>The Other Factory</option>
+        </select>
+      </div>
+      <div><div class="filter-label">Region</div>
+        <select id="drill-region" onchange="renderDrillDown()">
+          <option value="all">All Regions</option>
+          <option>Atlantic</option><option>Gulf</option><option>Interior</option><option>Pacific</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">📊 Route Performance (Top 20 by Speed)</div><canvas id="chart-routes" height="340"></canvas></div>
+      <div class="card"><div class="card-title">📋 Route Details</div>
+        <div class="table-wrapper" style="max-height:420px;">
+          <table><thead><tr><th>Factory</th><th>State</th><th>Region</th><th>Avg LT</th><th>Std</th><th>Vol</th><th>Delay%</th><th>Score</th></tr></thead>
+          <tbody id="table-routes"></tbody></table>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">🏭 Factory × Region Performance Matrix</div><div id="factory-matrix"></div></div>
+  </div>
+
+  <!-- TRENDS -->
+  <div id="tab-trends" class="tab-panel">
+    <h2>📈 Temporal Trends</h2>
+    <div class="card"><div class="card-title">📅 Monthly Avg Lead Time & Shipment Volume</div><canvas id="chart-monthly" height="200"></canvas></div>
+    <div class="grid-2">
+      <div class="card"><div class="card-title">🚨 Estimated Monthly Delay Rate</div><canvas id="chart-monthly-delay" height="220"></canvas></div>
+      <div class="card"><div class="card-title">📦 Monthly Shipment Volume</div><canvas id="chart-monthly-vol" height="220"></canvas></div>
+    </div>
+    <div class="card"><div class="card-title">💡 Trend Insights</div><div id="trend-insights"></div></div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const RAW = {"total": 10194, "avg_lt": 1320.8, "median_lt": 1274.0, "std_lt": 262.4, "threshold": 1583.3, "delay_pct": 33.1, "routes": [{"factory": "Secret Factory", "state": "New Mexico", "region": "Pacific", "count": 2, "avg_lt": 906.0, "std_lt": 2.8, "delay_pct": 0.0, "efficiency_score": 100.0}, {"factory": "Secret Factory", "state": "Nebraska", "region": "Interior", "count": 1, "avg_lt": 906.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 100.0}, {"factory": "The Other Factory", "state": "Louisiana", "region": "Gulf", "count": 1, "avg_lt": 907.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.9}, {"factory": "The Other Factory", "state": "Connecticut", "region": "Atlantic", "count": 2, "avg_lt": 907.5, "std_lt": 2.1, "delay_pct": 0.0, "efficiency_score": 99.8}, {"factory": "Secret Factory", "state": "Mississippi", "region": "Gulf", "count": 1, "avg_lt": 908.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.7}, {"factory": "Wicked Choccy's", "state": "Maine", "region": "Atlantic", "count": 2, "avg_lt": 908.0, "std_lt": 0.0, "delay_pct": 0.0, "efficiency_score": 99.7}, {"factory": "Secret Factory", "state": "Louisiana", "region": "Gulf", "count": 2, "avg_lt": 908.5, "std_lt": 0.7, "delay_pct": 0.0, "efficiency_score": 99.7}, {"factory": "Secret Factory", "state": "South Carolina", "region": "Gulf", "count": 1, "avg_lt": 909.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.6}, {"factory": "Secret Factory", "state": "Minnesota", "region": "Interior", "count": 1, "avg_lt": 909.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.6}, {"factory": "Secret Factory", "state": "Delaware", "region": "Atlantic", "count": 1, "avg_lt": 909.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.6}, {"factory": "Sugar Shack", "state": "Delaware", "region": "Atlantic", "count": 1, "avg_lt": 910.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.5}, {"factory": "The Other Factory", "state": "Florida", "region": "Gulf", "count": 3, "avg_lt": 1029.3, "std_lt": 212.8, "delay_pct": 0.0, "efficiency_score": 83.2}, {"factory": "Sugar Shack", "state": "Florida", "region": "Gulf", "count": 3, "avg_lt": 1031.0, "std_lt": 211.3, "delay_pct": 0.0, "efficiency_score": 83.0}, {"factory": "Secret Factory", "state": "Virginia", "region": "Gulf", "count": 5, "avg_lt": 1053.4, "std_lt": 200.0, "delay_pct": 0.0, "efficiency_score": 80.0}, {"factory": "The Other Factory", "state": "New Hampshire", "region": "Atlantic", "count": 2, "avg_lt": 1088.5, "std_lt": 258.1, "delay_pct": 0.0, "efficiency_score": 75.2}, {"factory": "Sugar Shack", "state": "Illinois", "region": "Interior", "count": 2, "avg_lt": 1089.0, "std_lt": 257.4, "delay_pct": 0.0, "efficiency_score": 75.1}, {"factory": "The Other Factory", "state": "Oregon", "region": "Pacific", "count": 2, "avg_lt": 1089.0, "std_lt": 258.8, "delay_pct": 0.0, "efficiency_score": 75.1}, {"factory": "Secret Factory", "state": "Nevada", "region": "Pacific", "count": 2, "avg_lt": 1091.0, "std_lt": 261.6, "delay_pct": 0.0, "efficiency_score": 74.9}, {"factory": "Secret Factory", "state": "Arizona", "region": "Pacific", "count": 5, "avg_lt": 1127.4, "std_lt": 327.5, "delay_pct": 20.0, "efficiency_score": 69.9}, {"factory": "The Other Factory", "state": "Massachusetts", "region": "Atlantic", "count": 3, "avg_lt": 1150.7, "std_lt": 211.0, "delay_pct": 0.0, "efficiency_score": 66.8}, {"factory": "Wicked Choccy's", "state": "South Dakota", "region": "Interior", "count": 3, "avg_lt": 1152.0, "std_lt": 422.6, "delay_pct": 33.3, "efficiency_score": 66.6}, {"factory": "The Other Factory", "state": "Virginia", "region": "Gulf", "count": 4, "avg_lt": 1180.5, "std_lt": 181.7, "delay_pct": 0.0, "efficiency_score": 62.7}, {"factory": "Wicked Choccy's", "state": "Nevada", "region": "Pacific", "count": 12, "avg_lt": 1182.2, "std_lt": 226.4, "delay_pct": 8.3, "efficiency_score": 62.5}, {"factory": "The Other Factory", "state": "Texas", "region": "Interior", "count": 9, "avg_lt": 1191.6, "std_lt": 304.5, "delay_pct": 22.2, "efficiency_score": 61.2}, {"factory": "Lot's O' Nuts", "state": "Maine", "region": "Atlantic", "count": 6, "avg_lt": 1213.5, "std_lt": 149.7, "delay_pct": 0.0, "efficiency_score": 58.2}, {"factory": "Lot's O' Nuts", "state": "Newfoundland and Labrador", "region": "Atlantic", "count": 6, "avg_lt": 1216.2, "std_lt": 357.4, "delay_pct": 33.3, "efficiency_score": 57.9}, {"factory": "Wicked Choccy's", "state": "Montana", "region": "Pacific", "count": 7, "avg_lt": 1221.9, "std_lt": 389.9, "delay_pct": 42.9, "efficiency_score": 57.1}, {"factory": "Secret Factory", "state": "Texas", "region": "Interior", "count": 16, "avg_lt": 1227.1, "std_lt": 323.9, "delay_pct": 31.2, "efficiency_score": 56.4}, {"factory": "Lot's O' Nuts", "state": "Virginia", "region": "Gulf", "count": 109, "avg_lt": 1229.5, "std_lt": 262.0, "delay_pct": 20.2, "efficiency_score": 56.0}, {"factory": "Wicked Choccy's", "state": "South Carolina", "region": "Gulf", "count": 19, "avg_lt": 1234.2, "std_lt": 240.9, "delay_pct": 15.8, "efficiency_score": 55.4}, {"factory": "Lot's O' Nuts", "state": "Utah", "region": "Pacific", "count": 29, "avg_lt": 1236.0, "std_lt": 298.2, "delay_pct": 27.6, "efficiency_score": 55.2}, {"factory": "Wicked Choccy's", "state": "Virginia", "region": "Gulf", "count": 106, "avg_lt": 1238.9, "std_lt": 254.8, "delay_pct": 19.8, "efficiency_score": 54.8}, {"factory": "Wicked Choccy's", "state": "Mississippi", "region": "Gulf", "count": 22, "avg_lt": 1240.5, "std_lt": 222.9, "delay_pct": 13.6, "efficiency_score": 54.6}, {"factory": "Lot's O' Nuts", "state": "Nevada", "region": "Pacific", "count": 24, "avg_lt": 1243.2, "std_lt": 239.2, "delay_pct": 16.7, "efficiency_score": 54.2}, {"factory": "Wicked Choccy's", "state": "Quebec", "region": "Atlantic", "count": 24, "avg_lt": 1243.6, "std_lt": 322.1, "delay_pct": 33.3, "efficiency_score": 54.1}, {"factory": "Lot's O' Nuts", "state": "Oregon", "region": "Pacific", "count": 77, "avg_lt": 1245.2, "std_lt": 269.9, "delay_pct": 23.4, "efficiency_score": 53.9}, {"factory": "Lot's O' Nuts", "state": "Ontario", "region": "Atlantic", "count": 28, "avg_lt": 1246.3, "std_lt": 261.4, "delay_pct": 21.4, "efficiency_score": 53.8}, {"factory": "Wicked Choccy's", "state": "Ontario", "region": "Atlantic", "count": 30, "avg_lt": 1248.6, "std_lt": 286.5, "delay_pct": 26.7, "efficiency_score": 53.5}, {"factory": "Lot's O' Nuts", "state": "Kansas", "region": "Interior", "count": 15, "avg_lt": 1248.9, "std_lt": 216.1, "delay_pct": 13.3, "efficiency_score": 53.4}, {"factory": "The Other Factory", "state": "Kentucky", "region": "Gulf", "count": 2, "avg_lt": 1271.0, "std_lt": 519.0, "delay_pct": 50.0, "efficiency_score": 50.4}, {"factory": "The Other Factory", "state": "Arizona", "region": "Pacific", "count": 2, "avg_lt": 1271.5, "std_lt": 0.7, "delay_pct": 0.0, "efficiency_score": 50.3}, {"factory": "Secret Factory", "state": "Oregon", "region": "Pacific", "count": 2, "avg_lt": 1271.5, "std_lt": 0.7, "delay_pct": 0.0, "efficiency_score": 50.3}, {"factory": "The Other Factory", "state": "Ohio", "region": "Atlantic", "count": 3, "avg_lt": 1272.0, "std_lt": 1.7, "delay_pct": 0.0, "efficiency_score": 50.3}, {"factory": "Sugar Shack", "state": "Tennessee", "region": "Gulf", "count": 1, "avg_lt": 1272.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.3}, {"factory": "Wicked Choccy's", "state": "Louisiana", "region": "Gulf", "count": 15, "avg_lt": 1272.3, "std_lt": 337.9, "delay_pct": 40.0, "efficiency_score": 50.2}, {"factory": "Secret Factory", "state": "Alabama", "region": "Gulf", "count": 3, "avg_lt": 1272.3, "std_lt": 366.5, "delay_pct": 33.3, "efficiency_score": 50.2}, {"factory": "Lot's O' Nuts", "state": "New Hampshire", "region": "Atlantic", "count": 13, "avg_lt": 1272.5, "std_lt": 210.9, "delay_pct": 15.4, "efficiency_score": 50.2}, {"factory": "Wicked Choccy's", "state": "Alabama", "region": "Gulf", "count": 22, "avg_lt": 1272.7, "std_lt": 252.8, "delay_pct": 22.7, "efficiency_score": 50.2}, {"factory": "Wicked Choccy's", "state": "Nova Scotia", "region": "Atlantic", "count": 6, "avg_lt": 1272.7, "std_lt": 326.9, "delay_pct": 33.3, "efficiency_score": 50.2}, {"factory": "Wicked Choccy's", "state": "Connecticut", "region": "Atlantic", "count": 31, "avg_lt": 1272.9, "std_lt": 267.4, "delay_pct": 25.8, "efficiency_score": 50.1}, {"factory": "The Other Factory", "state": "Pennsylvania", "region": "Atlantic", "count": 7, "avg_lt": 1273.0, "std_lt": 210.5, "delay_pct": 14.3, "efficiency_score": 50.1}, {"factory": "The Other Factory", "state": "Rhode Island", "region": "Atlantic", "count": 1, "avg_lt": 1273.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.1}, {"factory": "Secret Factory", "state": "Vermont", "region": "Atlantic", "count": 1, "avg_lt": 1273.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.1}, {"factory": "The Other Factory", "state": "South Carolina", "region": "Gulf", "count": 1, "avg_lt": 1273.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.1}, {"factory": "Sugar Shack", "state": "Rhode Island", "region": "Atlantic", "count": 1, "avg_lt": 1273.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.1}, {"factory": "Wicked Choccy's", "state": "New Brunswick", "region": "Atlantic", "count": 4, "avg_lt": 1273.2, "std_lt": 298.4, "delay_pct": 25.0, "efficiency_score": 50.1}, {"factory": "Lot's O' Nuts", "state": "New Brunswick", "region": "Atlantic", "count": 4, "avg_lt": 1273.2, "std_lt": 298.4, "delay_pct": 25.0, "efficiency_score": 50.1}, {"factory": "Lot's O' Nuts", "state": "Delaware", "region": "Atlantic", "count": 43, "avg_lt": 1273.3, "std_lt": 251.9, "delay_pct": 23.3, "efficiency_score": 50.1}, {"factory": "Wicked Choccy's", "state": "Arkansas", "region": "Gulf", "count": 27, "avg_lt": 1273.5, "std_lt": 303.4, "delay_pct": 33.3, "efficiency_score": 50.1}, {"factory": "Wicked Choccy's", "state": "Utah", "region": "Pacific", "count": 23, "avg_lt": 1273.5, "std_lt": 290.6, "delay_pct": 30.4, "efficiency_score": 50.1}, {"factory": "Secret Factory", "state": "Quebec", "region": "Atlantic", "count": 2, "avg_lt": 1273.5, "std_lt": 516.9, "delay_pct": 50.0, "efficiency_score": 50.1}, {"factory": "The Other Factory", "state": "Colorado", "region": "Pacific", "count": 2, "avg_lt": 1273.5, "std_lt": 2.1, "delay_pct": 0.0, "efficiency_score": 50.1}, {"factory": "Wicked Choccy's", "state": "Delaware", "region": "Atlantic", "count": 49, "avg_lt": 1273.7, "std_lt": 210.9, "delay_pct": 16.3, "efficiency_score": 50.0}, {"factory": "Lot's O' Nuts", "state": "British Columbia", "region": "Pacific", "count": 18, "avg_lt": 1273.8, "std_lt": 307.1, "delay_pct": 33.3, "efficiency_score": 50.0}, {"factory": "Lot's O' Nuts", "state": "Alberta", "region": "Pacific", "count": 16, "avg_lt": 1273.9, "std_lt": 266.9, "delay_pct": 25.0, "efficiency_score": 50.0}, {"factory": "The Other Factory", "state": "Indiana", "region": "Interior", "count": 1, "avg_lt": 1274.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.0}, {"factory": "Sugar Shack", "state": "Arizona", "region": "Pacific", "count": 1, "avg_lt": 1274.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.0}, {"factory": "The Other Factory", "state": "Maryland", "region": "Atlantic", "count": 1, "avg_lt": 1274.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.0}, {"factory": "Lot's O' Nuts", "state": "Wyoming", "region": "Pacific", "count": 1, "avg_lt": 1274.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 50.0}, {"factory": "Wicked Choccy's", "state": "Alberta", "region": "Pacific", "count": 8, "avg_lt": 1274.4, "std_lt": 338.4, "delay_pct": 37.5, "efficiency_score": 49.9}, {"factory": "Secret Factory", "state": "Alberta", "region": "Pacific", "count": 2, "avg_lt": 1274.5, "std_lt": 516.9, "delay_pct": 50.0, "efficiency_score": 49.9}, {"factory": "Secret Factory", "state": "New Jersey", "region": "Atlantic", "count": 2, "avg_lt": 1274.5, "std_lt": 2.1, "delay_pct": 0.0, "efficiency_score": 49.9}, {"factory": "The Other Factory", "state": "Washington", "region": "Pacific", "count": 4, "avg_lt": 1275.0, "std_lt": 298.0, "delay_pct": 25.0, "efficiency_score": 49.9}, {"factory": "Wicked Choccy's", "state": "District of Columbia", "region": "Atlantic", "count": 2, "avg_lt": 1275.0, "std_lt": 0.0, "delay_pct": 0.0, "efficiency_score": 49.9}, {"factory": "The Other Factory", "state": "Missouri", "region": "Interior", "count": 1, "avg_lt": 1275.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 49.9}, {"factory": "Secret Factory", "state": "Utah", "region": "Pacific", "count": 1, "avg_lt": 1275.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 49.9}, {"factory": "Lot's O' Nuts", "state": "Oklahoma", "region": "Interior", "count": 41, "avg_lt": 1282.7, "std_lt": 237.5, "delay_pct": 22.0, "efficiency_score": 48.8}, {"factory": "Lot's O' Nuts", "state": "Arkansas", "region": "Gulf", "count": 31, "avg_lt": 1285.4, "std_lt": 274.5, "delay_pct": 29.0, "efficiency_score": 48.5}, {"factory": "Lot's O' Nuts", "state": "South Carolina", "region": "Gulf", "count": 21, "avg_lt": 1290.3, "std_lt": 244.7, "delay_pct": 23.8, "efficiency_score": 47.8}, {"factory": "Wicked Choccy's", "state": "Michigan", "region": "Interior", "count": 100, "avg_lt": 1291.8, "std_lt": 239.9, "delay_pct": 24.0, "efficiency_score": 47.6}, {"factory": "Lot's O' Nuts", "state": "Massachusetts", "region": "Atlantic", "count": 76, "avg_lt": 1292.1, "std_lt": 252.4, "delay_pct": 26.3, "efficiency_score": 47.5}, {"factory": "Lot's O' Nuts", "state": "Alabama", "region": "Gulf", "count": 34, "avg_lt": 1295.2, "std_lt": 253.1, "delay_pct": 26.5, "efficiency_score": 47.1}, {"factory": "Lot's O' Nuts", "state": "Rhode Island", "region": "Atlantic", "count": 30, "avg_lt": 1296.9, "std_lt": 302.0, "delay_pct": 36.7, "efficiency_score": 46.9}, {"factory": "Lot's O' Nuts", "state": "Mississippi", "region": "Gulf", "count": 30, "avg_lt": 1297.7, "std_lt": 286.8, "delay_pct": 33.3, "efficiency_score": 46.8}, {"factory": "Wicked Choccy's", "state": "Nebraska", "region": "Interior", "count": 14, "avg_lt": 1299.3, "std_lt": 225.1, "delay_pct": 21.4, "efficiency_score": 46.6}, {"factory": "Secret Factory", "state": "Ohio", "region": "Atlantic", "count": 13, "avg_lt": 1301.2, "std_lt": 314.9, "delay_pct": 38.5, "efficiency_score": 46.3}, {"factory": "Lot's O' Nuts", "state": "Louisiana", "region": "Gulf", "count": 24, "avg_lt": 1303.0, "std_lt": 283.0, "delay_pct": 33.3, "efficiency_score": 46.1}, {"factory": "Lot's O' Nuts", "state": "Michigan", "region": "Interior", "count": 147, "avg_lt": 1303.0, "std_lt": 247.2, "delay_pct": 27.2, "efficiency_score": 46.1}, {"factory": "Wicked Choccy's", "state": "Florida", "region": "Gulf", "count": 161, "avg_lt": 1305.1, "std_lt": 250.3, "delay_pct": 28.0, "efficiency_score": 45.8}, {"factory": "Lot's O' Nuts", "state": "Arizona", "region": "Pacific", "count": 111, "avg_lt": 1306.2, "std_lt": 253.9, "delay_pct": 28.8, "efficiency_score": 45.6}, {"factory": "Secret Factory", "state": "California", "region": "Pacific", "count": 31, "avg_lt": 1308.3, "std_lt": 288.3, "delay_pct": 35.5, "efficiency_score": 45.3}, {"factory": "Lot's O' Nuts", "state": "Texas", "region": "Interior", "count": 569, "avg_lt": 1310.5, "std_lt": 260.3, "delay_pct": 30.9, "efficiency_score": 45.0}, {"factory": "Wicked Choccy's", "state": "Missouri", "region": "Interior", "count": 29, "avg_lt": 1311.1, "std_lt": 298.1, "delay_pct": 37.9, "efficiency_score": 45.0}, {"factory": "Secret Factory", "state": "Pennsylvania", "region": "Atlantic", "count": 19, "avg_lt": 1311.4, "std_lt": 296.0, "delay_pct": 36.8, "efficiency_score": 44.9}, {"factory": "Wicked Choccy's", "state": "New York", "region": "Atlantic", "count": 436, "avg_lt": 1311.9, "std_lt": 245.0, "delay_pct": 28.2, "efficiency_score": 44.9}, {"factory": "Wicked Choccy's", "state": "Wisconsin", "region": "Interior", "count": 47, "avg_lt": 1312.2, "std_lt": 205.3, "delay_pct": 21.3, "efficiency_score": 44.8}, {"factory": "Wicked Choccy's", "state": "Ohio", "region": "Atlantic", "count": 189, "avg_lt": 1313.4, "std_lt": 267.6, "delay_pct": 32.8, "efficiency_score": 44.6}, {"factory": "Wicked Choccy's", "state": "Kansas", "region": "Interior", "count": 9, "avg_lt": 1314.0, "std_lt": 337.8, "delay_pct": 44.4, "efficiency_score": 44.6}, {"factory": "Sugar Shack", "state": "New York", "region": "Atlantic", "count": 9, "avg_lt": 1314.1, "std_lt": 285.4, "delay_pct": 33.3, "efficiency_score": 44.6}, {"factory": "Lot's O' Nuts", "state": "North Carolina", "region": "Gulf", "count": 143, "avg_lt": 1314.2, "std_lt": 249.3, "delay_pct": 29.4, "efficiency_score": 44.5}, {"factory": "Lot's O' Nuts", "state": "Pennsylvania", "region": "Atlantic", "count": 331, "avg_lt": 1315.1, "std_lt": 260.5, "delay_pct": 31.7, "efficiency_score": 44.4}, {"factory": "Wicked Choccy's", "state": "Texas", "region": "Interior", "count": 388, "avg_lt": 1315.6, "std_lt": 272.9, "delay_pct": 34.3, "efficiency_score": 44.3}, {"factory": "Wicked Choccy's", "state": "Oregon", "region": "Pacific", "count": 43, "avg_lt": 1316.2, "std_lt": 242.4, "delay_pct": 27.9, "efficiency_score": 44.3}, {"factory": "Lot's O' Nuts", "state": "California", "region": "Pacific", "count": 1125, "avg_lt": 1316.9, "std_lt": 265.4, "delay_pct": 33.1, "efficiency_score": 44.2}, {"factory": "Lot's O' Nuts", "state": "Florida", "region": "Gulf", "count": 209, "avg_lt": 1318.6, "std_lt": 283.2, "delay_pct": 36.8, "efficiency_score": 43.9}, {"factory": "Lot's O' Nuts", "state": "Montana", "region": "Pacific", "count": 8, "avg_lt": 1319.2, "std_lt": 234.0, "delay_pct": 25.0, "efficiency_score": 43.9}, {"factory": "Wicked Choccy's", "state": "Colorado", "region": "Pacific", "count": 70, "avg_lt": 1319.8, "std_lt": 256.2, "delay_pct": 31.4, "efficiency_score": 43.8}, {"factory": "Lot's O' Nuts", "state": "Illinois", "region": "Interior", "count": 267, "avg_lt": 1319.9, "std_lt": 268.4, "delay_pct": 34.1, "efficiency_score": 43.8}, {"factory": "Wicked Choccy's", "state": "California", "region": "Pacific", "count": 823, "avg_lt": 1320.3, "std_lt": 262.5, "delay_pct": 33.0, "efficiency_score": 43.7}, {"factory": "Wicked Choccy's", "state": "Arizona", "region": "Pacific", "count": 105, "avg_lt": 1322.1, "std_lt": 273.2, "delay_pct": 35.2, "efficiency_score": 43.5}, {"factory": "Wicked Choccy's", "state": "Kentucky", "region": "Gulf", "count": 58, "avg_lt": 1323.8, "std_lt": 269.0, "delay_pct": 34.5, "efficiency_score": 43.2}, {"factory": "The Other Factory", "state": "California", "region": "Pacific", "count": 21, "avg_lt": 1325.0, "std_lt": 265.1, "delay_pct": 33.3, "efficiency_score": 43.1}, {"factory": "Wicked Choccy's", "state": "Idaho", "region": "Pacific", "count": 7, "avg_lt": 1325.0, "std_lt": 328.4, "delay_pct": 42.9, "efficiency_score": 43.1}, {"factory": "Lot's O' Nuts", "state": "Kentucky", "region": "Gulf", "count": 77, "avg_lt": 1325.4, "std_lt": 276.3, "delay_pct": 36.4, "efficiency_score": 43.0}, {"factory": "Wicked Choccy's", "state": "Maryland", "region": "Atlantic", "count": 41, "avg_lt": 1326.7, "std_lt": 264.9, "delay_pct": 34.1, "efficiency_score": 42.8}, {"factory": "Secret Factory", "state": "Illinois", "region": "Interior", "count": 13, "avg_lt": 1328.7, "std_lt": 360.0, "delay_pct": 53.8, "efficiency_score": 42.6}, {"factory": "Wicked Choccy's", "state": "Illinois", "region": "Interior", "count": 210, "avg_lt": 1329.1, "std_lt": 266.3, "delay_pct": 35.2, "efficiency_score": 42.5}, {"factory": "Lot's O' Nuts", "state": "Georgia", "region": "Gulf", "count": 110, "avg_lt": 1329.6, "std_lt": 243.4, "delay_pct": 30.9, "efficiency_score": 42.4}, {"factory": "Lot's O' Nuts", "state": "New York", "region": "Atlantic", "count": 645, "avg_lt": 1330.5, "std_lt": 249.3, "delay_pct": 32.2, "efficiency_score": 42.3}, {"factory": "Wicked Choccy's", "state": "Minnesota", "region": "Interior", "count": 45, "avg_lt": 1330.7, "std_lt": 310.8, "delay_pct": 44.4, "efficiency_score": 42.3}, {"factory": "Wicked Choccy's", "state": "Oklahoma", "region": "Interior", "count": 25, "avg_lt": 1332.0, "std_lt": 250.5, "delay_pct": 32.0, "efficiency_score": 42.1}, {"factory": "Lot's O' Nuts", "state": "Ohio", "region": "Atlantic", "count": 262, "avg_lt": 1334.1, "std_lt": 260.4, "delay_pct": 35.1, "efficiency_score": 41.8}, {"factory": "Lot's O' Nuts", "state": "Quebec", "region": "Atlantic", "count": 24, "avg_lt": 1334.1, "std_lt": 298.6, "delay_pct": 41.7, "efficiency_score": 41.8}, {"factory": "Wicked Choccy's", "state": "Massachusetts", "region": "Atlantic", "count": 54, "avg_lt": 1334.4, "std_lt": 253.3, "delay_pct": 33.3, "efficiency_score": 41.8}, {"factory": "Wicked Choccy's", "state": "New Jersey", "region": "Atlantic", "count": 59, "avg_lt": 1335.4, "std_lt": 216.6, "delay_pct": 27.1, "efficiency_score": 41.7}, {"factory": "Lot's O' Nuts", "state": "New Jersey", "region": "Atlantic", "count": 65, "avg_lt": 1335.7, "std_lt": 278.7, "delay_pct": 38.5, "efficiency_score": 41.6}, {"factory": "Lot's O' Nuts", "state": "Nebraska", "region": "Interior", "count": 23, "avg_lt": 1336.1, "std_lt": 237.7, "delay_pct": 30.4, "efficiency_score": 41.6}, {"factory": "Wicked Choccy's", "state": "Pennsylvania", "region": "Atlantic", "count": 227, "avg_lt": 1339.2, "std_lt": 263.7, "delay_pct": 36.6, "efficiency_score": 41.1}, {"factory": "Wicked Choccy's", "state": "New Hampshire", "region": "Atlantic", "count": 11, "avg_lt": 1340.1, "std_lt": 275.3, "delay_pct": 36.4, "efficiency_score": 41.0}, {"factory": "Lot's O' Nuts", "state": "Washington", "region": "Pacific", "count": 269, "avg_lt": 1344.0, "std_lt": 275.0, "delay_pct": 39.8, "efficiency_score": 40.5}, {"factory": "Wicked Choccy's", "state": "Georgia", "region": "Gulf", "count": 65, "avg_lt": 1346.2, "std_lt": 251.9, "delay_pct": 35.4, "efficiency_score": 40.2}, {"factory": "Secret Factory", "state": "Michigan", "region": "Interior", "count": 5, "avg_lt": 1346.2, "std_lt": 306.5, "delay_pct": 40.0, "efficiency_score": 40.2}, {"factory": "Secret Factory", "state": "Wisconsin", "region": "Interior", "count": 5, "avg_lt": 1346.4, "std_lt": 163.6, "delay_pct": 20.0, "efficiency_score": 40.2}, {"factory": "Lot's O' Nuts", "state": "Colorado", "region": "Pacific", "count": 103, "avg_lt": 1347.5, "std_lt": 252.7, "delay_pct": 35.9, "efficiency_score": 40.0}, {"factory": "Lot's O' Nuts", "state": "Minnesota", "region": "Interior", "count": 43, "avg_lt": 1350.4, "std_lt": 282.6, "delay_pct": 41.9, "efficiency_score": 39.6}, {"factory": "Lot's O' Nuts", "state": "Idaho", "region": "Pacific", "count": 14, "avg_lt": 1351.4, "std_lt": 255.7, "delay_pct": 35.7, "efficiency_score": 39.5}, {"factory": "The Other Factory", "state": "New York", "region": "Atlantic", "count": 14, "avg_lt": 1351.9, "std_lt": 326.8, "delay_pct": 50.0, "efficiency_score": 39.4}, {"factory": "Wicked Choccy's", "state": "North Carolina", "region": "Gulf", "count": 101, "avg_lt": 1352.8, "std_lt": 261.4, "delay_pct": 38.6, "efficiency_score": 39.3}, {"factory": "Wicked Choccy's", "state": "Rhode Island", "region": "Atlantic", "count": 21, "avg_lt": 1359.7, "std_lt": 280.1, "delay_pct": 42.9, "efficiency_score": 38.4}, {"factory": "Lot's O' Nuts", "state": "Missouri", "region": "Interior", "count": 36, "avg_lt": 1364.8, "std_lt": 267.2, "delay_pct": 41.7, "efficiency_score": 37.7}, {"factory": "Wicked Choccy's", "state": "British Columbia", "region": "Pacific", "count": 4, "avg_lt": 1364.8, "std_lt": 350.0, "delay_pct": 50.0, "efficiency_score": 37.7}, {"factory": "Lot's O' Nuts", "state": "District of Columbia", "region": "Atlantic", "count": 8, "avg_lt": 1365.9, "std_lt": 168.6, "delay_pct": 25.0, "efficiency_score": 37.5}, {"factory": "Lot's O' Nuts", "state": "Indiana", "region": "Interior", "count": 90, "avg_lt": 1366.8, "std_lt": 236.1, "delay_pct": 36.7, "efficiency_score": 37.4}, {"factory": "Lot's O' Nuts", "state": "Wisconsin", "region": "Interior", "count": 58, "avg_lt": 1367.6, "std_lt": 242.4, "delay_pct": 37.9, "efficiency_score": 37.3}, {"factory": "Lot's O' Nuts", "state": "Maryland", "region": "Atlantic", "count": 60, "avg_lt": 1370.7, "std_lt": 221.9, "delay_pct": 35.0, "efficiency_score": 36.9}, {"factory": "Wicked Choccy's", "state": "Washington", "region": "Pacific", "count": 221, "avg_lt": 1375.7, "std_lt": 270.8, "delay_pct": 45.2, "efficiency_score": 36.2}, {"factory": "Secret Factory", "state": "Colorado", "region": "Pacific", "count": 7, "avg_lt": 1376.6, "std_lt": 178.9, "delay_pct": 28.6, "efficiency_score": 36.1}, {"factory": "Secret Factory", "state": "Georgia", "region": "Gulf", "count": 7, "avg_lt": 1377.9, "std_lt": 347.5, "delay_pct": 57.1, "efficiency_score": 35.9}, {"factory": "Secret Factory", "state": "New York", "region": "Atlantic", "count": 24, "avg_lt": 1379.6, "std_lt": 274.4, "delay_pct": 45.8, "efficiency_score": 35.7}, {"factory": "Lot's O' Nuts", "state": "Tennessee", "region": "Gulf", "count": 109, "avg_lt": 1391.0, "std_lt": 257.7, "delay_pct": 45.9, "efficiency_score": 34.1}, {"factory": "Wicked Choccy's", "state": "Tennessee", "region": "Gulf", "count": 67, "avg_lt": 1393.8, "std_lt": 241.4, "delay_pct": 43.3, "efficiency_score": 33.7}, {"factory": "Secret Factory", "state": "Rhode Island", "region": "Atlantic", "count": 3, "avg_lt": 1394.3, "std_lt": 210.2, "delay_pct": 33.3, "efficiency_score": 33.7}, {"factory": "Sugar Shack", "state": "Michigan", "region": "Interior", "count": 3, "avg_lt": 1395.0, "std_lt": 212.2, "delay_pct": 33.3, "efficiency_score": 33.6}, {"factory": "Sugar Shack", "state": "Texas", "region": "Interior", "count": 3, "avg_lt": 1395.3, "std_lt": 212.8, "delay_pct": 33.3, "efficiency_score": 33.5}, {"factory": "Secret Factory", "state": "Tennessee", "region": "Gulf", "count": 3, "avg_lt": 1395.3, "std_lt": 211.9, "delay_pct": 33.3, "efficiency_score": 33.5}, {"factory": "The Other Factory", "state": "New Jersey", "region": "Atlantic", "count": 3, "avg_lt": 1395.3, "std_lt": 211.0, "delay_pct": 33.3, "efficiency_score": 33.5}, {"factory": "The Other Factory", "state": "Tennessee", "region": "Gulf", "count": 3, "avg_lt": 1395.7, "std_lt": 211.6, "delay_pct": 33.3, "efficiency_score": 33.5}, {"factory": "Lot's O' Nuts", "state": "Prince Edward Island", "region": "Atlantic", "count": 6, "avg_lt": 1395.8, "std_lt": 298.7, "delay_pct": 50.0, "efficiency_score": 33.5}, {"factory": "Sugar Shack", "state": "Pennsylvania", "region": "Atlantic", "count": 3, "avg_lt": 1396.3, "std_lt": 211.0, "delay_pct": 33.3, "efficiency_score": 33.4}, {"factory": "Wicked Choccy's", "state": "Indiana", "region": "Interior", "count": 54, "avg_lt": 1402.5, "std_lt": 257.8, "delay_pct": 48.1, "efficiency_score": 32.5}, {"factory": "Wicked Choccy's", "state": "Iowa", "region": "Interior", "count": 14, "avg_lt": 1403.8, "std_lt": 272.0, "delay_pct": 50.0, "efficiency_score": 32.4}, {"factory": "Wicked Choccy's", "state": "Vermont", "region": "Atlantic", "count": 5, "avg_lt": 1418.6, "std_lt": 200.3, "delay_pct": 40.0, "efficiency_score": 30.4}, {"factory": "Lot's O' Nuts", "state": "Connecticut", "region": "Atlantic", "count": 47, "avg_lt": 1420.6, "std_lt": 249.4, "delay_pct": 51.1, "efficiency_score": 30.1}, {"factory": "Lot's O' Nuts", "state": "Manitoba", "region": "Interior", "count": 2, "avg_lt": 1454.0, "std_lt": 258.8, "delay_pct": 50.0, "efficiency_score": 25.5}, {"factory": "Secret Factory", "state": "Massachusetts", "region": "Atlantic", "count": 2, "avg_lt": 1455.0, "std_lt": 260.2, "delay_pct": 50.0, "efficiency_score": 25.4}, {"factory": "Wicked Choccy's", "state": "Manitoba", "region": "Interior", "count": 10, "avg_lt": 1455.6, "std_lt": 192.9, "delay_pct": 50.0, "efficiency_score": 25.3}, {"factory": "The Other Factory", "state": "Georgia", "region": "Gulf", "count": 2, "avg_lt": 1456.0, "std_lt": 258.8, "delay_pct": 50.0, "efficiency_score": 25.3}, {"factory": "Secret Factory", "state": "Indiana", "region": "Interior", "count": 4, "avg_lt": 1456.2, "std_lt": 209.9, "delay_pct": 50.0, "efficiency_score": 25.2}, {"factory": "The Other Factory", "state": "Delaware", "region": "Atlantic", "count": 2, "avg_lt": 1456.5, "std_lt": 260.9, "delay_pct": 50.0, "efficiency_score": 25.2}, {"factory": "Secret Factory", "state": "Arkansas", "region": "Gulf", "count": 2, "avg_lt": 1456.5, "std_lt": 259.5, "delay_pct": 50.0, "efficiency_score": 25.2}, {"factory": "Lot's O' Nuts", "state": "New Mexico", "region": "Pacific", "count": 18, "avg_lt": 1456.9, "std_lt": 258.3, "delay_pct": 61.1, "efficiency_score": 25.1}, {"factory": "Wicked Choccy's", "state": "Prince Edward Island", "region": "Atlantic", "count": 4, "avg_lt": 1457.0, "std_lt": 211.3, "delay_pct": 50.0, "efficiency_score": 25.1}, {"factory": "The Other Factory", "state": "Alabama", "region": "Gulf", "count": 2, "avg_lt": 1457.0, "std_lt": 257.4, "delay_pct": 50.0, "efficiency_score": 25.1}, {"factory": "Wicked Choccy's", "state": "Saskatchewan", "region": "Pacific", "count": 2, "avg_lt": 1457.0, "std_lt": 258.8, "delay_pct": 50.0, "efficiency_score": 25.1}, {"factory": "Secret Factory", "state": "Washington", "region": "Pacific", "count": 11, "avg_lt": 1472.4, "std_lt": 190.5, "delay_pct": 54.5, "efficiency_score": 23.0}, {"factory": "Lot's O' Nuts", "state": "South Dakota", "region": "Interior", "count": 9, "avg_lt": 1477.2, "std_lt": 322.7, "delay_pct": 77.8, "efficiency_score": 22.4}, {"factory": "Lot's O' Nuts", "state": "Iowa", "region": "Interior", "count": 16, "avg_lt": 1479.0, "std_lt": 187.5, "delay_pct": 56.2, "efficiency_score": 22.1}, {"factory": "Secret Factory", "state": "Florida", "region": "Gulf", "count": 7, "avg_lt": 1482.1, "std_lt": 196.3, "delay_pct": 57.1, "efficiency_score": 21.7}, {"factory": "Wicked Choccy's", "state": "New Mexico", "region": "Pacific", "count": 17, "avg_lt": 1488.9, "std_lt": 226.4, "delay_pct": 64.7, "efficiency_score": 20.8}, {"factory": "Lot's O' Nuts", "state": "Vermont", "region": "Atlantic", "count": 5, "avg_lt": 1492.4, "std_lt": 200.3, "delay_pct": 60.0, "efficiency_score": 20.3}, {"factory": "Secret Factory", "state": "Maryland", "region": "Atlantic", "count": 3, "avg_lt": 1517.7, "std_lt": 211.0, "delay_pct": 66.7, "efficiency_score": 16.9}, {"factory": "Secret Factory", "state": "North Carolina", "region": "Gulf", "count": 4, "avg_lt": 1548.0, "std_lt": 181.4, "delay_pct": 75.0, "efficiency_score": 12.8}, {"factory": "The Other Factory", "state": "North Carolina", "region": "Gulf", "count": 1, "avg_lt": 1635.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 1.0}, {"factory": "Wicked Choccy's", "state": "North Dakota", "region": "Interior", "count": 2, "avg_lt": 1637.0, "std_lt": 0.0, "delay_pct": 100.0, "efficiency_score": 0.7}, {"factory": "Lot's O' Nuts", "state": "West Virginia", "region": "Atlantic", "count": 2, "avg_lt": 1637.0, "std_lt": 2.8, "delay_pct": 100.0, "efficiency_score": 0.7}, {"factory": "Sugar Shack", "state": "Ohio", "region": "Atlantic", "count": 2, "avg_lt": 1637.5, "std_lt": 3.5, "delay_pct": 100.0, "efficiency_score": 0.6}, {"factory": "Secret Factory", "state": "Kentucky", "region": "Gulf", "count": 2, "avg_lt": 1637.5, "std_lt": 0.7, "delay_pct": 100.0, "efficiency_score": 0.6}, {"factory": "Sugar Shack", "state": "Washington", "region": "Pacific", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "The Other Factory", "state": "Nevada", "region": "Pacific", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Secret Factory", "state": "Connecticut", "region": "Atlantic", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Sugar Shack", "state": "California", "region": "Pacific", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Lot's O' Nuts", "state": "North Dakota", "region": "Interior", "count": 5, "avg_lt": 1638.2, "std_lt": 1.6, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Wicked Choccy's", "state": "West Virginia", "region": "Atlantic", "count": 2, "avg_lt": 1639.0, "std_lt": 0.0, "delay_pct": 100.0, "efficiency_score": 0.4}, {"factory": "Secret Factory", "state": "New Hampshire", "region": "Atlantic", "count": 1, "avg_lt": 1641.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.1}, {"factory": "Sugar Shack", "state": "Connecticut", "region": "Atlantic", "count": 1, "avg_lt": 1641.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.1}, {"factory": "Sugar Shack", "state": "New Jersey", "region": "Atlantic", "count": 1, "avg_lt": 1642.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.0}], "ship_stats": {"Standard Class": {"count": 6120, "avg": 1314.3, "std": 262.4, "delay_pct": 31.8}, "First Class": {"count": 1548, "avg": 1338.3, "std": 265.6, "delay_pct": 37.2}, "Second Class": {"count": 1979, "avg": 1323.8, "std": 261.8, "delay_pct": 33.7}, "Same Day": {"count": 547, "avg": 1333.4, "std": 253.8, "delay_pct": 34.4}}, "region_stats": {"Interior": {"count": 2335, "avg": 1323.1, "delay_pct": 33.6}, "Atlantic": {"count": 2986, "avg": 1322.7, "delay_pct": 32.3}, "Gulf": {"count": 1620, "avg": 1311.4, "delay_pct": 32.0}, "Pacific": {"count": 3253, "avg": 1322.2, "delay_pct": 34.2}}, "factory_stats": {"Wicked Choccy's": {"count": 4152, "avg": 1321.1, "delay_pct": 33.1}, "Lot's O' Nuts": {"count": 5692, "avg": 1321.2, "delay_pct": 33.1}, "Secret Factory": {"count": 217, "avg": 1321.9, "delay_pct": 38.7}, "The Other Factory": {"count": 100, "avg": 1280.3, "delay_pct": 26.0}, "Sugar Shack": {"count": 33, "avg": 1340.0, "delay_pct": 36.4}}, "monthly": [{"month": "2024-01", "avg": 1067.2, "count": 148}, {"month": "2024-02", "avg": 1121.5, "count": 110}, {"month": "2024-03", "avg": 1079.4, "count": 300}, {"month": "2024-04", "avg": 1106.2, "count": 295}, {"month": "2024-05", "avg": 1102.1, "count": 282}, {"month": "2024-06", "avg": 1092.0, "count": 274}, {"month": "2024-07", "avg": 1088.3, "count": 283}, {"month": "2024-08", "avg": 1092.7, "count": 320}, {"month": "2024-09", "avg": 1097.7, "count": 568}, {"month": "2024-10", "avg": 1089.5, "count": 335}, {"month": "2024-11", "avg": 1091.8, "count": 644}, {"month": "2024-12", "avg": 1098.7, "count": 622}, {"month": "2025-01", "avg": 1502.6, "count": 256}, {"month": "2025-02", "avg": 1478.6, "count": 190}, {"month": "2025-03", "avg": 1490.7, "count": 411}, {"month": "2025-04", "avg": 1472.2, "count": 375}, {"month": "2025-05", "avg": 1462.7, "count": 476}, {"month": "2025-06", "avg": 1472.4, "count": 451}, {"month": "2025-07", "avg": 1466.5, "count": 435}, {"month": "2025-08", "avg": 1476.2, "count": 402}, {"month": "2025-09", "avg": 1477.6, "count": 831}, {"month": "2025-10", "avg": 1495.7, "count": 508}, {"month": "2025-11", "avg": 1475.7, "count": 830}, {"month": "2025-12", "avg": 1481.1, "count": 848}], "state_stats": [{"state": "Texas", "avg": 1310.3, "count": 985, "delay_pct": 32.2}, {"state": "Illinois", "avg": 1323.2, "count": 492, "delay_pct": 35.0}, {"state": "Pennsylvania", "avg": 1324.2, "count": 587, "delay_pct": 33.6}, {"state": "Kentucky", "avg": 1328.4, "count": 139, "delay_pct": 36.7}, {"state": "Georgia", "avg": 1338.6, "count": 184, "delay_pct": 33.7}, {"state": "California", "avg": 1318.4, "count": 2001, "delay_pct": 33.1}, {"state": "Virginia", "avg": 1229.1, "count": 224, "delay_pct": 19.2}, {"state": "Delaware", "avg": 1269.8, "count": 96, "delay_pct": 19.8}, {"state": "South Carolina", "avg": 1255.4, "count": 42, "delay_pct": 19.0}, {"state": "Ohio", "avg": 1325.7, "count": 469, "delay_pct": 34.3}, {"state": "Louisiana", "avg": 1263.8, "count": 42, "delay_pct": 33.3}, {"state": "Oregon", "avg": 1267.7, "count": 124, "delay_pct": 24.2}, {"state": "Arizona", "avg": 1309.2, "count": 224, "delay_pct": 31.2}, {"state": "Arkansas", "avg": 1285.7, "count": 60, "delay_pct": 31.7}, {"state": "Michigan", "avg": 1300.6, "count": 255, "delay_pct": 26.3}, {"state": "Tennessee", "avg": 1391.5, "count": 183, "delay_pct": 44.3}, {"state": "Florida", "avg": 1311.4, "count": 383, "delay_pct": 32.9}, {"state": "Ontario", "avg": 1247.5, "count": 58, "delay_pct": 24.1}, {"state": "Indiana", "avg": 1381.5, "count": 149, "delay_pct": 40.9}, {"state": "Nevada", "avg": 1226.8, "count": 39, "delay_pct": 15.4}, {"state": "South Dakota", "avg": 1395.9, "count": 12, "delay_pct": 66.7}, {"state": "New York", "avg": 1324.5, "count": 1128, "delay_pct": 31.2}, {"state": "Wisconsin", "avg": 1343.0, "count": 110, "delay_pct": 30.0}, {"state": "Washington", "avg": 1360.7, "count": 506, "delay_pct": 42.5}, {"state": "New Jersey", "avg": 1338.3, "count": 130, "delay_pct": 33.1}, {"state": "Missouri", "avg": 1339.9, "count": 66, "delay_pct": 39.4}, {"state": "North Carolina", "avg": 1334.9, "count": 249, "delay_pct": 34.1}, {"state": "Colorado", "avg": 1337.2, "count": 182, "delay_pct": 33.5}, {"state": "Alberta", "avg": 1274.1, "count": 26, "delay_pct": 30.8}, {"state": "Utah", "avg": 1253.0, "count": 53, "delay_pct": 28.3}, {"state": "Minnesota", "avg": 1335.5, "count": 89, "delay_pct": 42.7}, {"state": "Mississippi", "avg": 1266.6, "count": 53, "delay_pct": 24.5}, {"state": "Iowa", "avg": 1443.9, "count": 30, "delay_pct": 53.3}, {"state": "New Mexico", "avg": 1441.8, "count": 37, "delay_pct": 59.5}, {"state": "Massachusetts", "avg": 1308.3, "count": 135, "delay_pct": 28.9}, {"state": "Alabama", "avg": 1291.3, "count": 61, "delay_pct": 26.2}, {"state": "Idaho", "avg": 1342.6, "count": 21, "delay_pct": 38.1}, {"state": "Montana", "avg": 1273.8, "count": 15, "delay_pct": 33.3}, {"state": "Maryland", "avg": 1356.8, "count": 105, "delay_pct": 35.2}, {"state": "Connecticut", "avg": 1357.5, "count": 82, "delay_pct": 41.5}, {"state": "New Hampshire", "avg": 1300.0, "count": 27, "delay_pct": 25.9}, {"state": "British Columbia", "avg": 1290.3, "count": 22, "delay_pct": 36.4}, {"state": "Quebec", "avg": 1288.2, "count": 50, "delay_pct": 38.0}, {"state": "Nova Scotia", "avg": 1272.7, "count": 6, "delay_pct": 33.3}, {"state": "Oklahoma", "avg": 1301.4, "count": 66, "delay_pct": 25.8}, {"state": "Nebraska", "avg": 1311.2, "count": 38, "delay_pct": 26.3}, {"state": "Maine", "avg": 1137.1, "count": 8, "delay_pct": 0.0}, {"state": "Kansas", "avg": 1273.3, "count": 24, "delay_pct": 25.0}, {"state": "Rhode Island", "avg": 1324.8, "count": 56, "delay_pct": 37.5}, {"state": "Newfoundland and Labrador", "avg": 1216.2, "count": 6, "delay_pct": 33.3}, {"state": "New Brunswick", "avg": 1273.2, "count": 8, "delay_pct": 25.0}, {"state": "Prince Edward Island", "avg": 1420.3, "count": 10, "delay_pct": 50.0}, {"state": "District of Columbia", "avg": 1347.7, "count": 10, "delay_pct": 20.0}, {"state": "Vermont", "avg": 1438.9, "count": 11, "delay_pct": 45.5}, {"state": "Manitoba", "avg": 1455.3, "count": 12, "delay_pct": 50.0}, {"state": "Saskatchewan", "avg": 1457.0, "count": 2, "delay_pct": 50.0}, {"state": "Wyoming", "avg": 1274.0, "count": 1, "delay_pct": 0.0}, {"state": "North Dakota", "avg": 1637.9, "count": 7, "delay_pct": 100.0}, {"state": "West Virginia", "avg": 1638.0, "count": 4, "delay_pct": 100.0}], "div_stats": {"Chocolate": {"count": 9844, "avg": 1321.2}, "Other": {"count": 310, "avg": 1306.0}, "Sugar": {"count": 40, "avg": 1355.7}}, "hist_data": [{"x": 900, "count": 2051}, {"x": 1250, "count": 4764}, {"x": 1600, "count": 3379}], "top10": [{"factory": "Secret Factory", "state": "New Mexico", "region": "Pacific", "count": 2, "avg_lt": 906.0, "std_lt": 2.8, "delay_pct": 0.0, "efficiency_score": 100.0}, {"factory": "Secret Factory", "state": "Nebraska", "region": "Interior", "count": 1, "avg_lt": 906.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 100.0}, {"factory": "The Other Factory", "state": "Louisiana", "region": "Gulf", "count": 1, "avg_lt": 907.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.9}, {"factory": "The Other Factory", "state": "Connecticut", "region": "Atlantic", "count": 2, "avg_lt": 907.5, "std_lt": 2.1, "delay_pct": 0.0, "efficiency_score": 99.8}, {"factory": "Secret Factory", "state": "Mississippi", "region": "Gulf", "count": 1, "avg_lt": 908.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.7}, {"factory": "Wicked Choccy's", "state": "Maine", "region": "Atlantic", "count": 2, "avg_lt": 908.0, "std_lt": 0.0, "delay_pct": 0.0, "efficiency_score": 99.7}, {"factory": "Secret Factory", "state": "Louisiana", "region": "Gulf", "count": 2, "avg_lt": 908.5, "std_lt": 0.7, "delay_pct": 0.0, "efficiency_score": 99.7}, {"factory": "Secret Factory", "state": "South Carolina", "region": "Gulf", "count": 1, "avg_lt": 909.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.6}, {"factory": "Secret Factory", "state": "Minnesota", "region": "Interior", "count": 1, "avg_lt": 909.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.6}, {"factory": "Secret Factory", "state": "Delaware", "region": "Atlantic", "count": 1, "avg_lt": 909.0, "std_lt": 0, "delay_pct": 0.0, "efficiency_score": 99.6}], "bottom10": [{"factory": "Secret Factory", "state": "Kentucky", "region": "Gulf", "count": 2, "avg_lt": 1637.5, "std_lt": 0.7, "delay_pct": 100.0, "efficiency_score": 0.6}, {"factory": "Sugar Shack", "state": "Washington", "region": "Pacific", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "The Other Factory", "state": "Nevada", "region": "Pacific", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Secret Factory", "state": "Connecticut", "region": "Atlantic", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Sugar Shack", "state": "California", "region": "Pacific", "count": 1, "avg_lt": 1638.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Lot's O' Nuts", "state": "North Dakota", "region": "Interior", "count": 5, "avg_lt": 1638.2, "std_lt": 1.6, "delay_pct": 100.0, "efficiency_score": 0.5}, {"factory": "Wicked Choccy's", "state": "West Virginia", "region": "Atlantic", "count": 2, "avg_lt": 1639.0, "std_lt": 0.0, "delay_pct": 100.0, "efficiency_score": 0.4}, {"factory": "Secret Factory", "state": "New Hampshire", "region": "Atlantic", "count": 1, "avg_lt": 1641.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.1}, {"factory": "Sugar Shack", "state": "Connecticut", "region": "Atlantic", "count": 1, "avg_lt": 1641.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.1}, {"factory": "Sugar Shack", "state": "New Jersey", "region": "Atlantic", "count": 1, "avg_lt": 1642.0, "std_lt": 0, "delay_pct": 100.0, "efficiency_score": 0.0}]};
+
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(event && event.currentTarget) event.currentTarget.classList.add('active');
+}
+
+const COLORS = ['#c084fc','#60a5fa','#34d399','#f59e0b','#f87171','#a78bfa','#38bdf8','#4ade80'];
+const MODE_COLORS = {
+  'Standard Class': '#60a5fa',
+  'First Class': '#c084fc',
+  'Second Class': '#f59e0b',
+  'Same Day': '#34d399',
+};
+const REGION_COLORS = {
+  'Atlantic': '#60a5fa',
+  'Gulf': '#34d399',
+  'Interior': '#f59e0b',
+  'Pacific': '#c084fc',
+};
+
+function gradColor(val, min, max) {
+  const t = Math.max(0, Math.min(1, (val - min) / (max - min || 1)));
+  const r = Math.round(255 * Math.min(1, t * 2));
+  const g = Math.round(255 * Math.min(1, (1 - t) * 2));
+  return `rgba(${r},${g},50,0.85)`;
+}
+
+Chart.defaults.color = '#8892b0';
+Chart.defaults.borderColor = '#2a2a50';
+const charts = {};
+
+function mkChart(id, type, data, opts) {
+  if(charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id)?.getContext('2d');
+  if(!ctx) return;
+  charts[id] = new Chart(ctx, {
+    type, data,
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#8892b0', font: { size: 11 } } } },
+      scales: (type === 'bar' || type === 'line') ? {
+        x: { grid: { color: '#1a1a35' }, ticks: { color: '#8892b0' } },
+        y: { grid: { color: '#1a1a35' }, ticks: { color: '#8892b0' } },
+      } : {},
+      ...(opts || {})
+    }
+  });
+}
+
+function renderOverview() {
+  const d = RAW;
+  const hist = d.hist_data;
+  mkChart('chart-hist', 'bar', {
+    labels: hist.map(h => h.x+'–'+(h.x+49)),
+    datasets: [{ label: 'Shipments', data: hist.map(h => h.count),
+      backgroundColor: hist.map(h => h.x > d.threshold ? 'rgba(239,68,68,0.7)' : 'rgba(192,132,252,0.7)'),
+      borderWidth: 0 }]
+  }, { plugins: { legend: { display: false } }, scales: {
+    x: { grid:{color:'#1a1a35'}, ticks:{color:'#8892b0',maxTicksLimit:12}, title:{display:true,text:'Lead Time Range (days)',color:'#8892b0'} },
+    y: { grid:{color:'#1a1a35'}, ticks:{color:'#8892b0'} }
+  }});
+
+  const facs = Object.entries(d.factory_stats).sort((a,b)=>a[1].avg-b[1].avg);
+  mkChart('chart-factory', 'bar', {
+    labels: facs.map(f=>f[0]),
+    datasets: [{ label: 'Avg Lead Time', data: facs.map(f=>f[1].avg),
+      backgroundColor: facs.map(f => gradColor(f[1].avg, 1200, 1400)),
+      borderWidth: 0 }]
+  }, { indexAxis: 'y', plugins: { legend: {display:false} },
+    scales: {
+      x: { grid:{color:'#1a1a35'}, ticks:{color:'#8892b0'}, title:{display:true,text:'Avg Lead Time (days)',color:'#8892b0'} },
+      y: { grid:{color:'#1a1a35'}, ticks:{color:'#8892b0'} }
+    }});
+
+  document.getElementById('table-top10').innerHTML = d.top10.map(r => `
+    <tr><td>${r.factory}<br><small style="color:#8892b0">→ ${r.state}</small></td>
+    <td><b style="color:#22c55e">${r.avg_lt}</b></td>
+    <td>${r.count}</td>
+    <td><span class="badge badge-green">${r.efficiency_score}</span></td></tr>
+  `).join('');
+
+  document.getElementById('table-bot10').innerHTML = d.bottom10.map(r => `
+    <tr><td>${r.factory}<br><small style="color:#8892b0">→ ${r.state}</small></td>
+    <td><b style="color:#ef4444">${r.avg_lt}</b></td>
+    <td>${r.count}</td>
+    <td><span class="badge badge-red">${r.delay_pct}%</span></td></tr>
+  `).join('');
+
+  const divEl = document.getElementById('div-cards');
+  divEl.innerHTML = Object.entries(d.div_stats).map(([name, s], i) => `
+    <div class="card" style="margin:0;">
+      <div style="font-size:1.6rem;font-weight:700;color:${COLORS[i]}">${s.avg.toFixed(0)}<span style="font-size:0.8rem;color:#8892b0"> days avg</span></div>
+      <div style="font-weight:600;margin:4px 0;color:#d0c0f0">${name}</div>
+      <div class="bar-container" style="margin-top:8px;">
+        <div class="bar-fill bar-purple" style="width:${Math.min(95,Math.round(s.count/d.total*100*3))}%">${s.count.toLocaleString()} orders</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderGeographic() {
+  const d = RAW;
+  const states = d.state_stats;
+  const mn = Math.min(...states.map(s=>s.avg));
+  const mx = Math.max(...states.map(s=>s.avg));
+
+  const topVol = [...d.state_stats].sort((a,b)=>b.count-a.count).slice(0,25);
+  mkChart('chart-statebubble', 'bubble', {
+    datasets: topVol.map((s,i) => ({
+      label: s.state,
+      data: [{ x: s.avg, y: s.delay_pct, r: Math.max(4, Math.sqrt(s.count)*1.5) }],
+      backgroundColor: gradColor(s.avg, mn, mx).replace('0.85','0.6'),
+      borderColor: COLORS[i % COLORS.length]
+    }))
+  }, {
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: (ctx) => {
+        const s = topVol[ctx.datasetIndex];
+        return `${s.state}: LT=${s.avg}d, Delay=${s.delay_pct}%, Vol=${s.count}`;
+      }}}},
+    scales: {
+      x: { title:{display:true,text:'Avg Lead Time (days)',color:'#8892b0'}, grid:{color:'#1a1a35'}, ticks:{color:'#8892b0'} },
+      y: { title:{display:true,text:'Delay Rate (%)',color:'#8892b0'}, grid:{color:'#1a1a35'}, ticks:{color:'#8892b0'} }
+    }
+  });
+
+  const regEl = document.getElementById('region-cards');
+  const avgAll = d.avg_lt;
+  regEl.innerHTML = Object.entries(d.region_stats).sort((a,b)=>b[1].avg-a[1].avg).map(([name, r]) => `
+    <div class="region-card ${r.avg > avgAll ? 'slow' : 'fast'}">
+      <div class="region-name" style="color:${REGION_COLORS[name]}">${name}</div>
+      <div class="region-stat">⏱️ Avg LT<span>${r.avg} days</span></div>
+      <div class="region-stat">📦 Volume<span>${r.count.toLocaleString()}</span></div>
+      <div class="region-stat">🚨 Delayed<span>${r.delay_pct}%</span></div>
+    </div>
+  `).join('');
+
+  const slow15 = [...d.state_stats].sort((a,b)=>b.avg-a.avg).slice(0,15);
+  mkChart('chart-states', 'bar', {
+    labels: slow15.map(s=>s.state),
+    datasets: [{ label: 'Avg Lead Time', data: slow15.map(s=>s.avg),
+      backgroundColor: slow15.map(s => gradColor(s.avg, mn, mx)),
+      borderWidth: 0 }]
+  }, { indexAxis: 'y', plugins: { legend:{display:false} },
+    scales: {
+      x: { grid:{color:'#1a1a35'}, ticks:{color:'#8892b0'} },
+      y: { grid:{color:'#1a1a35'}, ticks:{color:'#8892b0',font:{size:10}} }
+    }});
+
+  const sortedStates = [...d.state_stats].sort((a,b)=>a.avg-b.avg);
+  document.getElementById('table-fast-states').innerHTML = sortedStates.slice(0,10).map(s=>`
+    <tr><td>${s.state}</td><td><b style="color:#22c55e">${s.avg}</b></td>
+    <td>${s.count}</td><td><span class="badge badge-green">${s.delay_pct}%</span></td></tr>
+  `).join('');
+  document.getElementById('table-slow-states').innerHTML = sortedStates.slice(-10).reverse().map(s=>`
+    <tr><td>${s.state}</td><td><b style="color:#ef4444">${s.avg}</b></td>
+    <td>${s.count}</td><td><span class="badge badge-red">${s.delay_pct}%</span></td></tr>
+  `).join('');
+}
+
+function renderShipMode() {
+  const d = RAW;
+  const modes = Object.entries(d.ship_stats).sort((a,b)=>a[1].avg-b[1].avg);
+
+  document.getElementById('mode-kpis').innerHTML = modes.map(([m,s]) => `
+    <div class="kpi-card">
+      <div class="kpi-value" style="font-size:1.3rem;color:${MODE_COLORS[m]||'#c084fc'}">${s.avg.toFixed(0)}d</div>
+      <div class="kpi-label">${m}</div>
+      <div class="kpi-delta ${s.delay_pct > 33 ? 'bad' : 'good'}">${s.delay_pct}% delayed · ${s.count.toLocaleString()} orders</div>
+    </div>
+  `).join('');
+
+  mkChart('chart-mode-avg', 'bar', {
+    labels: modes.map(m=>m[0]),
+    datasets: [{ label: 'Avg Lead Time', data: modes.map(m=>m[1].avg),
+      backgroundColor: modes.map(m=>MODE_COLORS[m[0]]||'#c084fc'), borderWidth: 0 }]
+  }, { plugins:{legend:{display:false}}, scales:{
+    x:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0'}},
+    y:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0'},title:{display:true,text:'Days',color:'#8892b0'}}
+  }});
+
+  mkChart('chart-mode-delay', 'bar', {
+    labels: modes.map(m=>m[0]),
+    datasets: [{ label: 'Delay Rate (%)', data: modes.map(m=>m[1].delay_pct),
+      backgroundColor: modes.map(m => m[1].delay_pct > 33 ? 'rgba(239,68,68,0.8)' : 'rgba(34,197,94,0.8)'),
+      borderWidth: 0 }]
+  }, { plugins:{legend:{display:false}}, scales:{
+    x:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0'}},
+    y:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0',callback: v=>v+'%'},max:50}
+  }});
+
+  mkChart('chart-mode-vol', 'doughnut', {
+    labels: modes.map(m=>m[0]),
+    datasets: [{ data: modes.map(m=>m[1].count),
+      backgroundColor: modes.map(m=>MODE_COLORS[m[0]]||'#c084fc'),
+      borderColor: '#0a0a18', borderWidth: 3 }]
+  }, { plugins: { legend: { position: 'bottom', labels:{color:'#8892b0',padding:12} } } });
+
+  // Factory x Region heatmap
+  const factories = [...new Set(d.routes.map(r=>r.factory))];
+  const regions2 = ['Atlantic','Gulf','Interior','Pacific'];
+  let htmHeat = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8rem">`;
+  htmHeat += `<tr><th style="color:#8892b0;padding:6px;text-align:left;"></th>`;
+  regions2.forEach(r => htmHeat += `<th style="color:#8892b0;padding:6px;text-align:center">${r}</th>`);
+  htmHeat += '</tr>';
+  factories.forEach(fac => {
+    htmHeat += `<tr><td style="color:#d0c0f0;padding:6px;font-weight:600;white-space:nowrap">${fac}</td>`;
+    regions2.forEach(reg => {
+      const rts = d.routes.filter(r => r.factory === fac && r.region === reg);
+      if(!rts.length) { htmHeat += `<td style="padding:6px;text-align:center;color:#4a4a6a">—</td>`; return; }
+      const avg = rts.reduce((a,b)=>a+b.avg_lt,0)/rts.length;
+      const t=(avg-900)/(1650-900);
+      const rv=Math.round(255*Math.min(1,t*2)), gv=Math.round(255*Math.min(1,(1-t)*2));
+      const vol = rts.reduce((a,b)=>a+b.count,0);
+      htmHeat += `<td style="padding:6px;text-align:center;background:rgba(${rv},${gv},50,0.3);border-radius:4px">
+        <b>${avg.toFixed(0)}</b><br><small style="color:#8892b0">${vol}</small></td>`;
+    });
+    htmHeat += '</tr>';
+  });
+  htmHeat += '</table></div>';
+  document.getElementById('heatmap-container').innerHTML = htmHeat;
+
+  const fastest = modes[0], slowest = modes[modes.length-1];
+  document.getElementById('mode-insights').innerHTML = `
+    <div class="insight"><div class="insight-title">🏆 Fastest Mode: ${fastest[0]}</div>
+    <div class="insight-text">Average lead time of ${fastest[1].avg} days with ${fastest[1].delay_pct}% delay rate. Best choice for cost-effective bulk distribution.</div></div>
+    <div class="insight"><div class="insight-title">⚠️ Slowest Mode: ${slowest[0]}</div>
+    <div class="insight-text">${slowest[0]} averages ${slowest[1].avg} days — ${(slowest[1].avg - fastest[1].avg).toFixed(0)} days slower than ${fastest[0]}. Premium tiers not delivering proportional speed advantages.</div></div>
+    <div class="insight"><div class="insight-title">📌 Key Finding: Mode Label vs Reality</div>
+    <div class="insight-text">All shipping modes show multi-year lead times (900–1,642 days). This dataset likely reflects long-range planning or projected shipment windows rather than real-time operations. Relative rankings remain analytically valid.</div></div>
+  `;
+}
+
+function renderDrillDown() {
+  const d = RAW;
+  let routes = [...d.routes];
+  const fac = document.getElementById('drill-factory')?.value;
+  const reg = document.getElementById('drill-region')?.value;
+  if(fac && fac !== 'all') routes = routes.filter(r=>r.factory===fac);
+  if(reg && reg !== 'all') routes = routes.filter(r=>r.region===reg);
+  routes.sort((a,b)=>a.avg_lt-b.avg_lt);
+  const top20 = routes.slice(0,20);
+
+  mkChart('chart-routes', 'bar', {
+    labels: top20.map(r=>r.state),
+    datasets: [{ label: 'Avg Lead Time', data: top20.map(r=>r.avg_lt),
+      backgroundColor: top20.map(r=>gradColor(r.avg_lt,900,1642)),
+      borderWidth: 0 }]
+  }, { indexAxis:'y', plugins:{legend:{display:false}}, scales:{
+    x:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0'}},
+    y:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0',font:{size:10}}}
+  }});
+
+  document.getElementById('table-routes').innerHTML = routes.map(r => `
+    <tr>
+      <td style="color:#c084fc">${r.factory}</td>
+      <td>${r.state}</td>
+      <td><span class="badge" style="background:${REGION_COLORS[r.region]}20;color:${REGION_COLORS[r.region]}">${r.region}</span></td>
+      <td><b style="color:${r.avg_lt > 1400 ? '#ef4444' : '#22c55e'}">${r.avg_lt}</b></td>
+      <td style="color:#8892b0">${r.std_lt}</td>
+      <td>${r.count}</td>
+      <td><span class="badge ${r.delay_pct>33?'badge-red':'badge-green'}">${r.delay_pct}%</span></td>
+      <td><span class="badge ${r.efficiency_score>50?'badge-green':'badge-red'}">${r.efficiency_score}</span></td>
+    </tr>
+  `).join('');
+
+  const factories = [...new Set(d.routes.map(r=>r.factory))];
+  const regions2 = ['Atlantic','Gulf','Interior','Pacific'];
+  let mtx = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.82rem">`;
+  mtx += `<tr><th style="padding:8px;color:#8892b0;text-align:left">Factory</th>`;
+  regions2.forEach(r => mtx += `<th style="padding:8px;color:#8892b0;text-align:center">${r}</th>`);
+  mtx += '<th style="padding:8px;color:#8892b0;text-align:center">Overall</th></tr>';
+  factories.forEach(fac2 => {
+    mtx += `<tr><td style="padding:8px;color:#d0c0f0;font-weight:600">${fac2}</td>`;
+    let factoryLTs = [];
+    regions2.forEach(reg2 => {
+      const rts = d.routes.filter(r=>r.factory===fac2 && r.region===reg2);
+      if(!rts.length) { mtx += `<td style="padding:8px;text-align:center;color:#4a4a6a">—</td>`; return; }
+      const avg = rts.reduce((a,b)=>a+b.avg_lt,0)/rts.length;
+      factoryLTs.push(avg);
+      const t=(avg-900)/(1650-900);
+      const rv=Math.round(255*Math.min(1,t*2)), gv=Math.round(255*Math.min(1,(1-t)*2));
+      const vol = rts.reduce((a,b)=>a+b.count,0);
+      mtx += `<td style="padding:8px;text-align:center;background:rgba(${rv},${gv},50,0.25);border-radius:4px">
+        <b>${avg.toFixed(0)}</b><br><small style="color:#8892b0">${vol} orders</small></td>`;
+    });
+    const overall = factoryLTs.length ? factoryLTs.reduce((a,b)=>a+b,0)/factoryLTs.length : 0;
+    mtx += `<td style="padding:8px;text-align:center;font-weight:700;color:#c084fc">${overall.toFixed(0)}</td></tr>`;
+  });
+  mtx += '</table></div>';
+  document.getElementById('factory-matrix').innerHTML = mtx;
+}
+
+function renderTrends() {
+  const d = RAW;
+  const months = d.monthly;
+
+  mkChart('chart-monthly', 'line', {
+    labels: months.map(m=>m.month),
+    datasets: [
+      { label: 'Avg Lead Time (days)', data: months.map(m=>m.avg),
+        borderColor: '#c084fc', backgroundColor: '#c084fc20', fill: true, tension: 0.4, yAxisID: 'y' },
+      { label: 'Shipments', data: months.map(m=>m.count),
+        borderColor: '#60a5fa', backgroundColor: '#60a5fa30', fill: true, tension: 0.3, type: 'bar', yAxisID: 'y2' },
+    ]
+  }, { scales: {
+    x:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0',maxTicksLimit:18}},
+    y:{grid:{color:'#1a1a35'},ticks:{color:'#c084fc'},title:{display:true,text:'Avg Lead Time (days)',color:'#c084fc'}},
+    y2:{position:'right',grid:{display:false},ticks:{color:'#60a5fa'},title:{display:true,text:'Shipments',color:'#60a5fa'}}
+  }});
+
+  mkChart('chart-monthly-delay', 'line', {
+    labels: months.map(m=>m.month),
+    datasets: [{ label: 'Delay Rate (%)',
+      data: months.map(m => (m.avg / d.avg_lt * d.delay_pct).toFixed(1)),
+      borderColor: '#f87171', backgroundColor: '#f8717130', fill: true, tension: 0.4 }]
+  }, { plugins:{legend:{display:false}}, scales:{
+    x:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0',maxTicksLimit:18}},
+    y:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0',callback:v=>parseFloat(v).toFixed(0)+'%'}}
+  }});
+
+  mkChart('chart-monthly-vol', 'bar', {
+    labels: months.map(m=>m.month),
+    datasets: [{ label:'Shipments', data:months.map(m=>m.count),
+      backgroundColor:'#60a5fa88', borderWidth:0 }]
+  }, { plugins:{legend:{display:false}}, scales:{
+    x:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0',maxTicksLimit:18}},
+    y:{grid:{color:'#1a1a35'},ticks:{color:'#8892b0'}}
+  }});
+
+  const minMonth = months.reduce((a,b)=>a.avg<b.avg?a:b);
+  const maxMonth = months.reduce((a,b)=>a.avg>b.avg?a:b);
+  const peakVolMonth = months.reduce((a,b)=>a.count>b.count?a:b);
+  document.getElementById('trend-insights').innerHTML = `
+    <div class="insight"><div class="insight-title">📉 Best Performance Month: ${minMonth.month}</div>
+    <div class="insight-text">Lowest average lead time of ${minMonth.avg} days. Investigate operational conditions during this period for replicable best practices.</div></div>
+    <div class="insight"><div class="insight-title">📈 Worst Performance Month: ${maxMonth.month}</div>
+    <div class="insight-text">Peak lead time of ${maxMonth.avg} days. Review whether this aligns with holiday demand surges or carrier capacity constraints.</div></div>
+    <div class="insight"><div class="insight-title">📦 Peak Volume Month: ${peakVolMonth.month}</div>
+    <div class="insight-text">${peakVolMonth.count.toLocaleString()} shipments. High-volume periods may create bottlenecks — monitor proactively to prevent cascade delays.</div></div>
+  `;
+}
+
+function applyFilters() {}
+
+renderOverview();
+renderGeographic();
+renderShipMode();
+renderDrillDown();
+renderTrends();
+</script>
+</body>
+</html>
